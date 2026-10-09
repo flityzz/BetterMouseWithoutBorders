@@ -64,6 +64,44 @@ only mirrors real activity: step away and both PCs go idle and *Away* as usual. 
 (Settings or tray menu) to let that PC idle on its own schedule.
 Settings asks whether to **start with Windows** (on by default). This uses your user's Run key, so it needs no admin rights.
 
+## Sound and microphone (optional)
+
+Hear the other PC's sound on this PC, and use one PC's microphone on both. Everything is off until
+you turn it on in the tray menu → **Audio**. A stream only flows while the sending PC allows it *and*
+the receiving PC asks for it.
+
+Typical setup (headset on the Host, the Client is a second PC on the desk):
+
+| On the Client | On the Host |
+|---|---|
+| ✔ Send this PC's sound to *host* | ✔ Play *client*'s sound here |
+| ✔ Use *host*'s microphone here | ✔ Send my microphone to *client* |
+
+- **Sound** needs nothing extra. The Client's speakers are muted while its sound is sent (turn off
+  **Mute this PC's speakers while sending** to keep both), and unmuted again when it stops.
+- **Microphone** needs a virtual audio cable on the PC that *receives* it, because Windows only lets
+  apps pick a microphone that is a real audio device. Install the free
+  [VB-Audio Virtual Cable](https://vb-audio.com/Cable/) there (needs admin once; tray → Audio →
+  **Get VB-Audio Virtual Cable…**). Then pick **CABLE Output** as the microphone in Teams, Discord,
+  Zoom… on that PC. Keep your real speakers as the default playback device.
+- The Host keeps using its microphone normally at the same time.
+- **Use a headset on the Host** when you take a call on the Client. Otherwise the Host's microphone
+  hears the call playing on the Host's speakers, and the people in the call hear themselves (the call
+  app on the Client can't cancel an echo that happens on another PC).
+
+How it works: speakers are captured with WASAPI loopback, the microphone with WASAPI, and both are
+sent as 48 kHz 16-bit PCM in 10 ms packets (about 1.5 Mbit/s for sound, 0.8 Mbit/s for the mic,
+nothing while silent) over the same encrypted connection. Audio has its own queue: behind mouse and
+keyboard, ahead of clipboard transfers, and old packets are dropped rather than played late. The
+receiver keeps about 40 ms buffered and adjusts its speed by up to 0.5 % so the two sound cards'
+clocks never drift apart. Added delay is roughly 60–100 ms on a wired LAN.
+
+Device choice, in `BetterMouseWithoutBorders.ini` (part of the device name, empty = Windows default):
+`MicDevice` (microphone to send), `AudioOutputDevice` (where the other PC's sound plays),
+`MicOutputDevice` (where the received microphone goes, default `CABLE Input`).
+
+Both PCs need this version for audio; an older version on the other PC simply ignores it.
+
 ## Why it survives network trouble
 
 - **Host** listens on every network adapter (Ethernet, Wi-Fi, direct cable; IPv4 and IPv6). When the

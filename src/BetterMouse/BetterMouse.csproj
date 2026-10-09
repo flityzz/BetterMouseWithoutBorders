@@ -13,7 +13,7 @@
     <ApplicationIcon>app.ico</ApplicationIcon>
     <PlatformTarget>AnyCPU</PlatformTarget>
     <Prefer32Bit>false</Prefer32Bit>
-    <Version>1.5.0</Version>
+    <Version>1.6.0</Version>
     <Product>Better Mouse Without Borders</Product>
     <AssemblyTitle>Better Mouse Without Borders</AssemblyTitle>
     <Description>Share one mouse and keyboard between PCs on a local network.</Description>
