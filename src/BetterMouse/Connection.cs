@@ -50,10 +50,6 @@ namespace BetterMouse
         readonly SecureChannel channel;
         readonly ConcurrentQueue<byte[]> urgent = new ConcurrentQueue<byte[]>();
         readonly ConcurrentQueue<IFrameSource> bulk = new ConcurrentQueue<IFrameSource>();
-        /// <summary>Real-time audio: after input, before bulk. Old packets are dropped if the link can't keep up.</summary>
-        readonly ConcurrentQueue<byte[]> media = new ConcurrentQueue<byte[]>();
-        const int MaxMediaQueued = 30; // 300 ms of audio
-        int mediaQueued;
         readonly AutoResetEvent signal = new AutoResetEvent(false);
         readonly ManualResetEventSlim byeFlushed = new ManualResetEventSlim(false);
         bool byePending;
@@ -186,19 +182,6 @@ namespace BetterMouse
             signal.Set();
         }
 
-        /// <summary>
-        /// Queues a real-time audio packet; never blocks. If more than ~300 ms is waiting (slow or
-        /// stalled link) the oldest is dropped: late audio is worse than a short gap.
-        /// </summary>
-        public void SendMedia(byte[] message)
-        {
-            if (IsClosed) return;
-            media.Enqueue(message);
-            if (Interlocked.Increment(ref mediaQueued) > MaxMediaQueued && media.TryDequeue(out _))
-                Interlocked.Decrement(ref mediaQueued);
-            signal.Set();
-        }
-
         /// <summary>Queues a low-priority stream (clipboard). It is disposed when done or on close.</summary>
         public void SendBulk(IFrameSource source)
         {
@@ -289,13 +272,6 @@ namespace BetterMouse
                     while (urgent.TryDequeue(out var m))
                     {
                         Append(batch, m);
-                        if (batch.Length >= 32 * 1024) Flush(batch);
-                    }
-
-                    while (media.TryDequeue(out var a))
-                    {
-                        Interlocked.Decrement(ref mediaQueued);
-                        Append(batch, a);
                         if (batch.Length >= 32 * 1024) Flush(batch);
                     }
 

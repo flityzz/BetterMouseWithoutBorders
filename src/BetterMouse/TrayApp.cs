@@ -14,13 +14,11 @@ namespace BetterMouse
         readonly NotifyIcon tray;
         readonly ToolStripMenuItem statusItem, switchItem, edgeItem, firewallItem, sideMenu, activityItem;
         readonly ToolStripMenuItem loginMenu, loginEnableItem, loginDisableItem;
-        readonly ToolStripMenuItem audioMenu, audioStatusItem, sendAudioItem, muteItem, playAudioItem, sendMicItem, receiveMicItem;
         bool serviceActive;
         readonly Icon iconOffline, iconOnline, iconRemote, iconControlled, iconProblem;
         readonly KvmEngine kvm;
         readonly Injector injector;
         readonly ClipboardSync clipboard;
-        readonly AudioShare audio;
         volatile NetworkManager net;
         volatile Settings settings;
         string cachedKeySource;
@@ -59,23 +57,6 @@ namespace BetterMouse
             loginMenu = new ToolStripMenuItem("Login-screen control");
             loginMenu.DropDownItems.Add(loginEnableItem);
             loginMenu.DropDownItems.Add(loginDisableItem);
-            audioStatusItem = new ToolStripMenuItem("Audio: nothing streaming") { Enabled = false };
-            sendAudioItem = new ToolStripMenuItem("Send this PC's sound to the other PC", null, (s, e) => ToggleAudio(x => x.SendAudio = !x.SendAudio));
-            muteItem = new ToolStripMenuItem("Mute this PC's speakers while sending", null, (s, e) => ToggleAudio(x => x.MuteWhileSending = !x.MuteWhileSending));
-            playAudioItem = new ToolStripMenuItem("Play the other PC's sound here", null, (s, e) => ToggleAudio(x => x.PlayAudio = !x.PlayAudio));
-            sendMicItem = new ToolStripMenuItem("Send my microphone to the other PC", null, (s, e) => ToggleAudio(x => x.SendMic = !x.SendMic));
-            receiveMicItem = new ToolStripMenuItem("Use the other PC's microphone here (VB-Cable)", null, (s, e) => ToggleReceiveMic());
-            audioMenu = new ToolStripMenuItem("Audio");
-            audioMenu.DropDownItems.Add(audioStatusItem);
-            audioMenu.DropDownItems.Add(new ToolStripSeparator());
-            audioMenu.DropDownItems.Add(sendAudioItem);
-            audioMenu.DropDownItems.Add(muteItem);
-            audioMenu.DropDownItems.Add(playAudioItem);
-            audioMenu.DropDownItems.Add(new ToolStripSeparator());
-            audioMenu.DropDownItems.Add(sendMicItem);
-            audioMenu.DropDownItems.Add(receiveMicItem);
-            audioMenu.DropDownItems.Add(new ToolStripSeparator());
-            audioMenu.DropDownItems.Add("Get VB-Audio Virtual Cable (admin install)…", null, (s, e) => OpenVbCablePage());
             sideMenu = new ToolStripMenuItem("Other PC is on my");
             foreach (var side in new[] { Edge.Left, Edge.Right, Edge.Top, Edge.Bottom })
             {
@@ -91,7 +72,6 @@ namespace BetterMouse
             menu.Items.Add(edgeItem);
             menu.Items.Add(sideMenu);
             menu.Items.Add(activityItem);
-            menu.Items.Add(audioMenu);
             menu.Items.Add(new ToolStripSeparator());
             menu.Items.Add("Settings…", null, (s, e) => ShowSettings(false));
             menu.Items.Add("Reconnect now", null, (s, e) => net?.Kick());
@@ -124,8 +104,6 @@ namespace BetterMouse
 
             clipboard = new ClipboardSync(ui, () => settings, s => { var n = net; if (n != null) n.SendBulk(s); else s.Dispose(); }, () => net?.IsConnected == true);
             clipboard.Notice += text => Ui(() => Balloon(text, ToolTipIcon.Info));
-
-            audio = new AudioShare(() => settings, m => net?.Current?.SendMedia(m), m => net?.Send(m));
 
             SystemEvents.SessionSwitch += OnSessionSwitch;
             SystemEvents.PowerModeChanged += OnPowerModeChanged;
@@ -187,7 +165,6 @@ namespace BetterMouse
                 var current = settings;
                 c.Send(Msg.Layout(current.PeerSide, current.LayoutChangedUtc)); // the PCs agree on left/right
                 clipboard.OnConnected();
-                audio.OnConnected();
                 Ui(() => { peerName = c.PeerName; Greet(); });
             };
             n.Disconnected += c =>
@@ -195,7 +172,6 @@ namespace BetterMouse
                 kvm.ForceLocal("connection lost");
                 injector.EndControl();
                 clipboard.OnDisconnected();
-                audio.OnDisconnected();
             };
             n.LastGoodAddressChanged += address => Ui(() =>
             {
@@ -281,10 +257,6 @@ namespace BetterMouse
                 case MsgType.ClipEnd:
                 case MsgType.ClipCancel:
                     clipboard.Receive(m);
-                    break;
-                case MsgType.AudioWant:
-                case MsgType.AudioData:
-                    audio.Receive(m);
                     break;
             }
         }
@@ -430,51 +402,6 @@ namespace BetterMouse
             loginMenu.Text = "Login-screen control: " + (installed ? (serviceActive ? "on" : "installed") : "off");
             loginEnableItem.Text = installed ? "Re-apply current settings (admin)…" : "Enable (needs admin once)…";
             loginDisableItem.Visible = installed;
-
-            var peer = net?.Current?.PeerName ?? "the other PC";
-            audioStatusItem.Text = audio.Describe();
-            sendAudioItem.Text = $"Send this PC's sound to {peer}";
-            sendAudioItem.Checked = s.SendAudio;
-            muteItem.Checked = s.MuteWhileSending;
-            muteItem.Enabled = s.SendAudio;
-            playAudioItem.Text = $"Play {peer}'s sound here";
-            playAudioItem.Checked = s.PlayAudio;
-            sendMicItem.Text = $"Send my microphone to {peer}";
-            sendMicItem.Checked = s.SendMic;
-            receiveMicItem.Text = $"Use {peer}'s microphone here (as '{AudioShare.VbCableOutput}')";
-            receiveMicItem.Checked = s.ReceiveMic;
-        }
-
-        // ------------------------------------------------------------ audio
-
-        void ToggleAudio(Action<Settings> change)
-        {
-            change(settings);
-            SaveSettings();
-            audio.SettingsChanged();
-        }
-
-        void ToggleReceiveMic()
-        {
-            if (!settings.ReceiveMic && !Wasapi.DeviceExists(EDataFlow.Render, settings.MicOutputDevice))
-            {
-                var answer = MessageBox.Show(
-                    $"'{settings.MicOutputDevice}' was not found on this PC.\n\n" +
-                    "To use the other PC's microphone here, install VB-Audio Virtual Cable (free, needs admin once). " +
-                    $"Then choose '{AudioShare.VbCableOutput}' as the microphone in Teams, Discord, etc. " +
-                    "Keep your real speakers as the default playback device.\n\n" +
-                    "Open the download page now? (The option is turned on anyway and starts working once the cable is installed.)",
-                    AppInfo.Name, MessageBoxButtons.YesNoCancel, MessageBoxIcon.Information);
-                if (answer == DialogResult.Cancel) return;
-                if (answer == DialogResult.Yes) OpenVbCablePage();
-            }
-            ToggleAudio(x => x.ReceiveMic = !x.ReceiveMic);
-        }
-
-        void OpenVbCablePage()
-        {
-            try { Process.Start(AudioShare.VbCableUrl); }
-            catch (Exception ex) { Log.Error("Could not open " + AudioShare.VbCableUrl, ex); }
         }
 
         /// <summary>The user picked a side here (tray menu or Settings): apply and tell the other PC.</summary>
@@ -532,7 +459,6 @@ namespace BetterMouse
                 }
 
                 var old = settings;
-                updated.CopyAudioFrom(old);
                 updated.LastGoodAddress = updated.PeerAddress == old.PeerAddress && updated.Port == old.Port ? old.LastGoodAddress : "";
                 bool sideChanged = updated.PeerSide != sideAtOpen;
                 if (sideChanged)
@@ -665,7 +591,6 @@ namespace BetterMouse
             try { StopNetwork(); } catch (Exception ex) { Log.Error("Stop failed", ex); }
             kvm.Dispose();
             clipboard.Dispose();
-            audio.Dispose(); // also unmutes this PC's speakers if we muted them
             tray.Dispose();
             Log.Flush();
             base.ExitThreadCore();

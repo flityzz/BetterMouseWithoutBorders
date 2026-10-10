@@ -34,11 +34,6 @@ namespace BetterMouse
         ClipData = 32,
         ClipEnd = 33,
         ClipCancel = 34,
-
-        /// <summary>"Send me your sound / microphone" (or stop). Older versions ignore it.</summary>
-        AudioWant = 40,
-        /// <summary>10 ms of 16-bit 48 kHz PCM: kind, channel count, samples.</summary>
-        AudioData = 41,
     }
 
     internal enum MouseButton : byte { Left = 1, Right = 2, Middle = 3, X1 = 4, X2 = 5 }
@@ -195,19 +190,5 @@ namespace BetterMouse
         public static byte[] ClipEnd(int id) => new PacketWriter(MsgType.ClipEnd).Int32(id).ToArray();
 
         public static byte[] ClipCancel(int id) => new PacketWriter(MsgType.ClipCancel).Int32(id).ToArray();
-
-        public static byte[] AudioWant(AudioKind kind, bool want) =>
-            new[] { (byte)MsgType.AudioWant, (byte)kind, (byte)(want ? 1 : 0) };
-
-        /// <summary>Hot path (100 per second): hand-rolled, samples copied as little-endian bytes.</summary>
-        public static byte[] AudioData(AudioKind kind, int channels, short[] pcm)
-        {
-            var b = new byte[3 + pcm.Length * 2];
-            b[0] = (byte)MsgType.AudioData;
-            b[1] = (byte)kind;
-            b[2] = (byte)channels;
-            Buffer.BlockCopy(pcm, 0, b, 3, pcm.Length * 2);
-            return b;
-        }
     }
 }

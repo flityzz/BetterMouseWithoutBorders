@@ -83,40 +83,6 @@ namespace BetterMouse
         /// <summary>Client only: the address that worked last time (tried first on reconnect).</summary>
         public string LastGoodAddress = "";
 
-        // ---- Audio sharing (see AudioShare). A stream flows only if the sender allows it AND the receiver wants it.
-        /// <summary>Send everything this PC plays (its speakers) to the other PC.</summary>
-        public bool SendAudio;
-        /// <summary>While sending this PC's sound, mute its own speakers (restored afterwards).</summary>
-        public bool MuteWhileSending = true;
-        /// <summary>Play the other PC's sound on this PC.</summary>
-        public bool PlayAudio;
-        /// <summary>Where to play the other PC's sound ("" = default speakers; else part of the device name).</summary>
-        public string AudioOutputDevice = "";
-        /// <summary>Send this PC's microphone to the other PC.</summary>
-        public bool SendMic;
-        /// <summary>Which microphone to send ("" = default microphone; else part of the device name).</summary>
-        public string MicDevice = "";
-        /// <summary>Receive the other PC's microphone and play it into <see cref="MicOutputDevice"/>.</summary>
-        public bool ReceiveMic;
-        /// <summary>
-        /// Output that the received microphone is played into: VB-Audio Virtual Cable's input, whose
-        /// other end ("CABLE Output") apps on this PC then use as their microphone.
-        /// </summary>
-        public string MicOutputDevice = AudioShare.VbCableInput;
-
-        /// <summary>The Settings dialog doesn't edit audio: carry these over when it builds a new Settings.</summary>
-        public void CopyAudioFrom(Settings o)
-        {
-            SendAudio = o.SendAudio;
-            MuteWhileSending = o.MuteWhileSending;
-            PlayAudio = o.PlayAudio;
-            AudioOutputDevice = o.AudioOutputDevice;
-            SendMic = o.SendMic;
-            MicDevice = o.MicDevice;
-            ReceiveMic = o.ReceiveMic;
-            MicOutputDevice = o.MicOutputDevice;
-        }
-
         public bool IsComplete =>
             SecurityKey.Trim().Length >= 6 &&
             (Role == Role.Host || Discovery || PeerAddress.Trim().Length > 0);
@@ -200,14 +166,6 @@ namespace BetterMouse
                 s.ShareFiles = Bool(values, "ShareFiles", s.ShareFiles);
                 s.MaxClipboardMB = Int(values, "MaxClipboardMB", s.MaxClipboardMB, 1, 4096);
                 s.LastGoodAddress = Str(values, "LastGoodAddress", s.LastGoodAddress);
-                s.SendAudio = Bool(values, "SendAudio", s.SendAudio);
-                s.MuteWhileSending = Bool(values, "MuteWhileSending", s.MuteWhileSending);
-                s.PlayAudio = Bool(values, "PlayAudio", s.PlayAudio);
-                s.AudioOutputDevice = Str(values, "AudioOutputDevice", s.AudioOutputDevice);
-                s.SendMic = Bool(values, "SendMic", s.SendMic);
-                s.MicDevice = Str(values, "MicDevice", s.MicDevice);
-                s.ReceiveMic = Bool(values, "ReceiveMic", s.ReceiveMic);
-                s.MicOutputDevice = Str(values, "MicOutputDevice", s.MicOutputDevice);
                 s.SecurityKey = UnprotectKey(Str(values, "SecurityKey", ""), scope);
             }
             catch (Exception ex)
@@ -236,14 +194,6 @@ namespace BetterMouse
             sb.AppendLine("ShareFiles=" + ShareFiles);
             sb.AppendLine("MaxClipboardMB=" + MaxClipboardMB);
             sb.AppendLine("LastGoodAddress=" + LastGoodAddress);
-            sb.AppendLine("SendAudio=" + SendAudio);
-            sb.AppendLine("MuteWhileSending=" + MuteWhileSending);
-            sb.AppendLine("PlayAudio=" + PlayAudio);
-            sb.AppendLine("AudioOutputDevice=" + AudioOutputDevice.Trim());
-            sb.AppendLine("SendMic=" + SendMic);
-            sb.AppendLine("MicDevice=" + MicDevice.Trim());
-            sb.AppendLine("ReceiveMic=" + ReceiveMic);
-            sb.AppendLine("MicOutputDevice=" + MicOutputDevice.Trim());
             sb.AppendLine("SecurityKey=" + ProtectKey(SecurityKey, scope));
             var tmp = path + ".tmp";
             File.WriteAllText(tmp, sb.ToString(), Encoding.UTF8);
